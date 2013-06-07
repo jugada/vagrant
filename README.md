@@ -23,3 +23,5 @@ Installation instructions:
 - Add play to the local path using 
   `echo 'export PATH=$PATH:/etc/play/play-2.1.1' >> $HOME/.bash_profile;
     . $HOME/.bash_profile`
+
+After that navigate to `/vagrant/play/cyodm` and type `sudo play` and the play console will show up. You can start the application by typing `run` in the console. Verify the app is running by visiting `localhost:9090` on your host machine. You should see the default application page. 
