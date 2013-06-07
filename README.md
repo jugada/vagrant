@@ -1,4 +1,25 @@
 vagrant
 =======
+Use this repo to setup your development machine, it includes the cyodm play application (please keep using this app for any development)
 
-Vagrant definitions for the dev environment
+It will setup a virtual box with: 
+
+- CentOS 5.7 x86_64
+- Latest Java
+- Play Framework 2.1.1
+
+
+Yo will find the application files in your host (local) machine under `/play/cyodm` and the same files in your virtual machine under `/vagrant/play/cyodm`
+
+Installation instructions:
+=======
+
+- Clone this repo to your local machine
+- Download latest version of Vagrant
+- Download latest version of VirtualBox
+- Type `vagrant up`
+- It will download the box and make the proper installations, this may take up to 30 mins depending on your internet connection
+- Connect to your new virtual box using `vagrant ssh`
+- Add play to the local path using 
+  `echo 'export PATH=$PATH:/etc/play/play-2.1.1' >> $HOME/.bash_profile;
+    . $HOME/.bash_profile`
