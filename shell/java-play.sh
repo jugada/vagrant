@@ -13,6 +13,7 @@ fi
 # Install java play framework
 echo "Installing Java"
 yum -y install java
+yum -y install java-devel
 yum -y install unzip
 
 if [ ! -d "/etc/play" ]; then
