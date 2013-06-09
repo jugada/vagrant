@@ -28,4 +28,4 @@ Installation instructions:
 
 After that navigate to `/vagrant/play/cyodm` and type `sudo play` and the play console will show up. You can start the application by typing `run` in the console. Verify the app is running by visiting `localhost:9090` on your host machine. You should see the default application page. 
 
-To start the neo4J database server type `neo4j start`
+To start the neo4J database server type `sudo neo4j start`
