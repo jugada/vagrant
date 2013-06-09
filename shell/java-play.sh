@@ -35,3 +35,14 @@ echo 'export PATH=$PATH:/etc/play/play-2.1.1' >> $HOME/.bash_profile
 . $HOME/.bash_profile
 echo $PATH
 echo "Play Framework installed!"
+
+if [ ! -d /neo4j ]; then
+  echo "Getting and installing Neo4J"
+  echo "Installing dependencies"
+  yum -y install lsof
+  echo "Downloading Neo4J"
+  wget -q http://dist.neo4j.org/neo4j-community-1.9-unix.tar.gz
+  mkdir /neo4j
+  tar -xzvf neo4j-community-1.9-unix.tar.gz -C /neo4j
+  echo "Neo4J Installed!"
+fi
