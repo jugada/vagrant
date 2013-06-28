@@ -1,7 +1,9 @@
 package controllers;
 
+import play.Logger;
 import play.libs.Json;
 import play.mvc.*;
+import models.*;
 
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ObjectNode;
@@ -9,7 +11,34 @@ import org.codehaus.jackson.node.ObjectNode;
 public class Application extends Controller {
   
     public static Result index() {
-        return ok("Your new application is ready.");
+        return ok("CYODM app standing by!.");
+    }
+    
+    /**
+     * Websocket imlementatioon
+     * 
+     * Our sockets will transport JSON messages
+     * 
+     * @return
+     */
+    public static WebSocket<JsonNode> story(final String user) {
+        return new WebSocket<JsonNode>() {
+            
+            public void onReady(WebSocket.In<JsonNode> in, WebSocket.Out<JsonNode> out) {
+
+            	try{
+            		
+            		WebSocketModel.connect(user, in, out);
+            		Logger.info("CONNECTED user "+user);
+            		
+            	}catch (Exception e){
+            		
+            		Logger.info("ERROR ON SOCKET CONNECTION");
+            		e.printStackTrace();
+            		
+            	}
+            }
+        };
     }
     
     @BodyParser.Of(BodyParser.Json.class)
