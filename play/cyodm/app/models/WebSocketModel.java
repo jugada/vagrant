@@ -1,8 +1,10 @@
 package models;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -43,6 +45,9 @@ public class WebSocketModel extends UntypedActor {
     
 	// people connected
 	static Map<String, WebSocket.Out<JsonNode>> connected = new HashMap<String, WebSocket.Out<JsonNode>>();
+	
+	// individual stories reading
+	static Map<Long, List<String>> storiesCount = new HashMap<Long, List<String>>();
 	
 	// everytime a new websocket is opened we call this method to initializate the connection
 	public static void connect(final String user, WebSocket.In<JsonNode> in, WebSocket.Out<JsonNode> out) throws Exception{
@@ -98,18 +103,6 @@ public class WebSocketModel extends UntypedActor {
             // Received a Join message
             Join join = (Join)message;
             connected.put(join.user, join.out);
-            
-            try {
-    			
-    			join.out.write(GeneralMessages.generalMessage("{\"type\":\"dudes\",\"connected\":\""+connected.size()+"\"}"));
-    			
-    		} catch (JsonProcessingException e) {
-    			// TODO Auto-generated catch block
-    			e.printStackTrace();
-    		} catch (IOException e) {
-    			// TODO Auto-generated catch block
-    			e.printStackTrace();
-    		}
             
         }
 		else if (message instanceof Message){
@@ -188,11 +181,28 @@ public class WebSocketModel extends UntypedActor {
 				    			//connected.get(mess.user).write(actualObj);
 				
 			}
+			else if (mess.message.get("action").asText().equals("setStory")){
+				
+				Long id = mess.message.get("id").asLong();
+				String user = mess.message.get("user").asText();
+				List<String> readers = new ArrayList<String>();
+				
+				if(storiesCount.containsKey(id)) {
+					readers = storiesCount.get(id);
+					readers.add(user);
+				} else {
+					readers.add(user);
+					storiesCount.put(id, readers);
+				}
+
+    			connected.get(mess.user).write(GeneralMessages.generalMessage("{\"type\":\"story\",\"dudes\":\""+readers.size()+"\", \"node\":\""+title+"\"}"));
+				
+			}
 			else if (mess.message.get("action").asText().equals("talk")){
 				
 				String username = mess.message.get("user").asText();
 				String talk = mess.message.get("talk").asText();
-    			connected.get(username).write(GeneralMessages.generalMessage("{\"message\":\""+talk+"\"}"));
+    			connected.get(username).write(GeneralMessages.generalMessage("{\"type\":\"chat\",\"from\":\""+mess.user+"\",\"message\":\""+talk+"\"}"));
 				
 			}
 			
