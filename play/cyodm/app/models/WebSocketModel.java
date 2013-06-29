@@ -1,33 +1,20 @@
 package models;
 
-import java.io.IOException;
 import java.util.ArrayList;
+import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-
 import play.Logger;
 import play.mvc.*;
 import play.libs.*;
 import controllers.Node;
-
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.neo4j.graphdb.GraphDatabaseService;
-//import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.RelationshipType;
-import org.neo4j.graphdb.Transaction;
-import org.neo4j.graphdb.factory.GraphDatabaseFactory;
-import org.neo4j.graphdb.index.Index;
-import org.neo4j.graphdb.index.IndexHits;
-import org.neo4j.graphdb.index.IndexManager;
-
 import play.libs.F.Callback;
 import play.libs.F.Callback0;
 import resources.GeneralMessages;
@@ -43,6 +30,7 @@ public class WebSocketModel extends UntypedActor {
 	
 	// individual stories reading
 	static Map<Long, List<String>> storiesCount = new HashMap<Long, List<String>>();
+	static Map<String, Long> storiesUser = new HashMap<String, Long>();
 	
 	// everytime a new websocket is opened we call this method to initializate the connection
 	public static void connect(final String user, WebSocket.In<JsonNode> in, WebSocket.Out<JsonNode> out) throws Exception{
@@ -89,6 +77,20 @@ public class WebSocketModel extends UntypedActor {
 	               
 	               // remove this dude
 	        	   connected.remove(user);
+	        	   // get the story where the user was
+	        	   List<String> readers = new ArrayList<String>();
+	        	   Long id = storiesUser.get(user);
+	        	   readers = storiesCount.get(id);
+	        	   readers.remove(readers.indexOf(user));
+	        	   try {
+					updateStoryCount(id);
+					} catch (JsonParseException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 	        	   Logger.info("DISCONNECTED user "+user);
 	               
 	           }
@@ -123,6 +125,11 @@ public class WebSocketModel extends UntypedActor {
 					URI location = Node.createNode(node);
 				    Logger.info("node created -> "+location.toString()+" title:"+node.findValuesAsText("title"));
 				    
+				    String path = location.getPath();
+				    String id = path.substring(path.lastIndexOf('/') + 1);
+				    
+				    connected.get(mess.user).write(GeneralMessages.createJsonResponse("{\"id\":"+id+"}"));
+				    
 				}
 				catch (Exception e) {
 					Logger.info("node creation failed");
@@ -137,22 +144,36 @@ public class WebSocketModel extends UntypedActor {
 			}
 			else if (mess.message.get("action").asText().equals("setStory")){
 				
+				Logger.info("GET: "+mess.message.toString());
+				
 				Long id = mess.message.get("id").asLong();
 				
 				List<String> readers = new ArrayList<String>();
 				
 				if(storiesCount.containsKey(id)) {
+					
 					readers = storiesCount.get(id);
-					readers.add(mess.user);
+					if (!readers.contains(mess.user)){
+						readers.add(mess.user);
+						updateStoryCount(id);
+					}
+					
 				} else {
 					readers.add(mess.user);
 					storiesCount.put(id, readers);
+					updateStoryCount(id);
 				}
 				
+				storiesUser.put(mess.user, id);
 				JsonNode node = Node.getNode(id.intValue());
 
-    			connected.get(mess.user).write(GeneralMessages.generalMessage("{\"type\":\"story\",\"dudes\":\""+readers.size()+"\"}"));
-    			connected.get(mess.user).write(node);
+    			connected.get(mess.user).write(GeneralMessages.generalMessage("{\"type\":\"dudes\",\"count\":\""+readers.size()+"\"}"));
+    			
+    			if (node == null ){
+    				connected.get(mess.user).write(GeneralMessages.errorMessage("Not found"));
+    			} else {
+    				connected.get(mess.user).write(node);	
+    			}
 				
 			}
 			else if (mess.message.get("action").asText().equals("talk")){
@@ -165,6 +186,13 @@ public class WebSocketModel extends UntypedActor {
 			
 		}
 		
+	}
+	
+	private static void updateStoryCount(Long id) throws JsonParseException, IOException{
+		int size = storiesCount.get(id).size();
+		for (String u: storiesCount.get(id)) {
+			connected.get(u).write(GeneralMessages.generalMessage("{\"type\":\"dudes\",\"count\":\""+size+"\"}"));   
+		}
 	}
     
 	// MESSAGES DEFINITIONS
@@ -191,29 +219,6 @@ public class WebSocketModel extends UntypedActor {
             this.message = message;
         }
         
-    }
-    
-//    // shut down neo4j locks
-//    private static void registerShutdownHook( final GraphDatabaseService graphDb )
-//    {
-//        // Registers a shutdown hook for the Neo4j instance so that it
-//        // shuts down nicely when the VM exits (even if you "Ctrl-C" the
-//        // running application).
-//        Runtime.getRuntime().addShutdownHook( new Thread()
-//        {
-//            @Override
-//            public void run()
-//            {
-//            	Logger.info("Shutting down Neo4J");
-//                graphDb.shutdown();
-//            }
-//        } );
-//    }
-    
-    private static enum RelTypes implements RelationshipType
-    {
-        SONOF,
-        ALTERNATIVEOF
     }
     
 }
