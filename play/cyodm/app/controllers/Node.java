@@ -22,7 +22,7 @@ import com.sun.jersey.api.client.WebResource;
 
 public class Node extends Controller {
 
-	private static final String nodeEntryPointUri = "http://localhost:7474/db/data/node";
+	public static final String nodeEntryPointUri = "http://localhost:7474/db/data/node";
 
 	public static JsonNode getNode(int id) throws Exception {
 		WebResource resource = Client.create()
@@ -31,7 +31,7 @@ public class Node extends Controller {
 		ClientResponse response = resource.accept( MediaType.APPLICATION_JSON )
 		        .type( MediaType.APPLICATION_JSON )
 		        .get( ClientResponse.class );
-		
+		Logger.info("Response: " + response.getStatus());
 		ObjectMapper mapper = new ObjectMapper();
         JsonFactory factory = mapper.getJsonFactory();
         JsonParser jp;
@@ -74,7 +74,7 @@ public class Node extends Controller {
 		return location;
 	}
 	
-	private static URI addRelationship( URI start, URI end, String type, String properties ) throws URISyntaxException {
+	public static URI addRelationship( URI start, URI end, String type, String properties ) throws URISyntaxException {
 	    URI fromUri = new URI( start.toString() + "/relationships" );
 	    String relationshipJson = generateJsonRelationship( end, type, properties );
 	 
@@ -93,6 +93,10 @@ public class Node extends Controller {
 	 
 	    response.close();
 	    return location;
+	}
+	
+	public static URI getUri(int id) throws URISyntaxException {
+		return new URI(nodeEntryPointUri + "/" + id);
 	}
 
     private static String generateJsonRelationship( URI end, String type, String... properties ) {

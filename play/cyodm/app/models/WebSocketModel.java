@@ -133,38 +133,42 @@ public class WebSocketModel extends UntypedActor {
 			Logger.info("Received: "+mess.message.toString()+ " FROM: "+mess.user);
 			Logger.info("Action: " + mess.message.get("action"));
 			
-			if (mess.message.get("action").asText().equals("save")){
-				try
-				{
-					Logger.info("creating node");
-					JsonNode node = mess.message.get("node");
-					URI location = Node.createNode(node);
-				    Logger.info("node created -> "+location.toString()+" title:"+node.findValuesAsText("title"));
-				    
+			String action  = mess.message.get("action").asText();
+				if("save".equals(action)) {
+					try
+					{
+						Logger.info("creating node");
+						JsonNode node = mess.message.get("node");
+						int parent = mess.message.get("parent").asInt();
+						Logger.info("Parent: " + parent);
+						URI location = Node.createNode(node);
+						if (parent > 0) {
+							URI relationship = Node.addRelationship(location, Node.getUri(parent), RelTypes.SONOF.toString(), "");
+							Logger.info("Relationship: " + relationship);
+						}
+					    Logger.info("node created -> "+location.toString()+" title:"+node.findValuesAsText("title"));
+					}
+					catch (Exception e) {
+						Logger.info("node creation failed");
+					}
 				}
-				catch (Exception e) {
-					Logger.info("node creation failed");
-				}				
-			}
-			else if (mess.message.get("action").asText().equals("get")){
-				
-				int id = mess.message.get("node").asInt();	
-				Logger.info("" + id);
-				JsonNode node = Node.getNode(id);
-				Logger.info("User:" + mess.user);
-				Logger.info("Node: " + node.toString());
-    			connected.get(mess.user).write(node);
-				
-			}
-			
+				else if ("get".equals(action)) {
+					int id = mess.message.get("node").asInt();
+					Logger.info("" + id);
+					JsonNode node = Node.getNode(id);
+					Logger.info("User:" + mess.user);
+					Logger.info("Node: " + node.toString());
+	    			connected.get(mess.user).write(node);
+				}
+				else if ("delete".equals(action)) {
+					
+				}
 		}
-		
 	}
-    
+
 	// MESSAGES DEFINITIONS
 	
     public static class Join {
-        
         final String user;
         final WebSocket.Out<JsonNode> out;
         
