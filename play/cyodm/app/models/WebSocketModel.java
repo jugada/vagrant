@@ -2,7 +2,9 @@ package models;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import play.Logger;
 import play.mvc.*;
@@ -13,18 +15,33 @@ import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.RelationshipType;
+
+import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+import org.neo4j.graphdb.index.Index;
+import org.neo4j.graphdb.index.IndexHits;
+import org.neo4j.graphdb.index.IndexManager;
 
 import play.libs.F.Callback;
 import play.libs.F.Callback0;
-
 
 import akka.actor.*;
 
 public class WebSocketModel extends UntypedActor {
 	
+	// the neo4j database
+	public static String DB_PATH= "data/graph.db/" ; 
+	private static final GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase(DB_PATH);
+	static{
+		registerShutdownHook( graphDb );
+	}
+	
 	// Default actor.
     static ActorRef defaultSpace = Akka.system().actorOf(new Props(WebSocketModel.class));
-
+    
 	// people connected
 	static Map<String, WebSocket.Out<JsonNode>> connected = new HashMap<String, WebSocket.Out<JsonNode>>();
 	
@@ -114,6 +131,67 @@ public class WebSocketModel extends UntypedActor {
 			// Received a message. Do something with it depending on the content of the json object
             Message mess = (Message)message;
 			Logger.info("Received: "+mess.message.toString()+ " FROM: "+mess.user);
+			
+			
+			if (mess.message.get("action").asText().equals("save")){
+				
+				Transaction tx = graphDb.beginTx();
+				try
+				{
+					Logger.info("creating node");
+					// create or retrieve the index
+					IndexManager index = graphDb.index();
+					Index<Node> stories = index.forNodes("stories");
+					Node newNode = graphDb.createNode();
+					
+					JsonNode node = mess.message.get("node");
+					
+					Iterator<Entry<String, JsonNode>> elementsIterator = node.getFields();  
+				    while (elementsIterator.hasNext())  
+				    { 
+				    	Entry<String, JsonNode> element = elementsIterator.next();  
+				    	newNode.setProperty(element.getKey(), element.getValue().asText());
+				    }
+				    
+				    // add the node to the index
+				    stories.add(newNode, "id", newNode.getProperty("title")+""+newNode.getId());
+					
+					/*Relationship relationship = firstNode.createRelationshipTo( secondNode, RelTypes.SONOF );
+					relationship.setProperty( "message", "brave Neo4j " );
+					*/
+					
+				    tx.success();
+				    Logger.info("node created ->"+newNode.toString()+" title:"+newNode.getProperty("title"));
+				    
+				}
+				finally
+				{
+				    tx.finish();
+				}
+				
+			}
+			else if (mess.message.get("action").asText().equals("get")){
+				
+				int id = mess.message.get("node").asInt();
+				String title = mess.message.get("title").asText();
+				
+				IndexManager index = graphDb.index();
+				Index<Node> stories = index.forNodes("stories");
+				IndexHits<Node> hits = stories.get("id", title+""+id);
+				
+				Node node = hits.getSingle();
+				
+				ObjectMapper mapper = new ObjectMapper();
+    	        JsonFactory factory = mapper.getJsonFactory();
+    	        JsonParser jp;
+    	        
+    	        jp = factory.createJsonParser("{\"NODE\":\""+node.getProperty("text")+"\"}");
+    	        JsonNode actualObj;
+    			actualObj = mapper.readTree(jp);
+    			connected.get(mess.user).write(actualObj);
+				
+			}
+			
 		}
 		
 	}
@@ -143,4 +221,28 @@ public class WebSocketModel extends UntypedActor {
         }
         
     }
+    
+    // shut down neo4j locks
+    private static void registerShutdownHook( final GraphDatabaseService graphDb )
+    {
+        // Registers a shutdown hook for the Neo4j instance so that it
+        // shuts down nicely when the VM exits (even if you "Ctrl-C" the
+        // running application).
+        Runtime.getRuntime().addShutdownHook( new Thread()
+        {
+            @Override
+            public void run()
+            {
+            	Logger.info("Shutting down Neo4J");
+                graphDb.shutdown();
+            }
+        } );
+    }
+    
+    private static enum RelTypes implements RelationshipType
+    {
+        SONOF,
+        ALTERNATIVEOF
+    }
+    
 }
