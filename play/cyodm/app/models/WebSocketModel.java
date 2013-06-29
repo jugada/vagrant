@@ -2,6 +2,7 @@ package models;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -11,14 +12,16 @@ import java.util.Map.Entry;
 import play.Logger;
 import play.mvc.*;
 import play.libs.*;
+import controllers.Node;
 
+import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.neo4j.graphdb.GraphDatabaseService;
-import org.neo4j.graphdb.Node;
-
+//import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.RelationshipType;
-
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.index.Index;
@@ -28,17 +31,9 @@ import org.neo4j.graphdb.index.IndexManager;
 import play.libs.F.Callback;
 import play.libs.F.Callback0;
 import resources.GeneralMessages;
-
 import akka.actor.*;
 
 public class WebSocketModel extends UntypedActor {
-	
-	// the neo4j database
-	public static String DB_PATH= "data/graph.db/" ; 
-	private static final GraphDatabaseService graphDb = new GraphDatabaseFactory().newEmbeddedDatabase(DB_PATH);
-	static{
-		registerShutdownHook( graphDb );
-	}
 	
 	// Default actor.
     static ActorRef defaultSpace = Akka.system().actorOf(new Props(WebSocketModel.class));
@@ -56,9 +51,17 @@ public class WebSocketModel extends UntypedActor {
 		if(connected.containsKey(user)) {
 			
 			try {
-				
-    			out.write(GeneralMessages.generalMessage("{\"error\":\"user already exists\"}"));
-    			
+				// create a json object to return the error. Is this the best way to do it?
+				// if there is no easier way to create an object move this code to a custom class
+				// so we can reuse it.
+    			ObjectMapper mapper = new ObjectMapper();
+    	        JsonFactory factory = mapper.getJsonFactory();
+    	        JsonParser jp;
+    	        
+    	        jp = factory.createJsonParser("{\"error\":\"user already exists\"}");
+    	        JsonNode actualObj;
+    			actualObj = mapper.readTree(jp);
+    			out.write(actualObj);
     		} catch (Exception e) {
     			// TODO Auto-generated catch block
     			e.printStackTrace();
@@ -110,92 +113,46 @@ public class WebSocketModel extends UntypedActor {
 			// Received a message. Do something with it depending on the content of the json object
             Message mess = (Message)message;
 			Logger.info("Received: "+mess.message.toString()+ " FROM: "+mess.user);
-			
+			Logger.info("Action: " + mess.message.get("action"));
 			
 			if (mess.message.get("action").asText().equals("save")){
-				
-				Transaction tx = graphDb.beginTx();
 				try
 				{
 					Logger.info("creating node");
-					// create or retrieve the index
-					IndexManager index = graphDb.index();
-					Index<Node> stories = index.forNodes("stories");
-					Node newNode = graphDb.createNode();
-					
 					JsonNode node = mess.message.get("node");
-					
-					Iterator<Entry<String, JsonNode>> elementsIterator = node.getFields();  
-				    while (elementsIterator.hasNext())  
-				    { 
-				    	Entry<String, JsonNode> element = elementsIterator.next();  
-				    	newNode.setProperty(element.getKey(), element.getValue().asText());
-				    }
-				    
-				    // add the node to the index
-				    stories.add(newNode, "id", newNode.getProperty("title")+""+newNode.getId());
-					
-					/*Relationship relationship = firstNode.createRelationshipTo( secondNode, RelTypes.SONOF );
-					relationship.setProperty( "message", "brave Neo4j " );
-					*/
-					
-				    tx.success();
-				    Logger.info("node created ->"+newNode.toString()+" title:"+newNode.getProperty("title"));
+					URI location = Node.createNode(node);
+				    Logger.info("node created -> "+location.toString()+" title:"+node.findValuesAsText("title"));
 				    
 				}
-				finally
-				{
-				    tx.finish();
-				}
-				
+				catch (Exception e) {
+					Logger.info("node creation failed");
+				}				
 			}
 			else if (mess.message.get("action").asText().equals("get")){
 				
-				int id = mess.message.get("node").asInt();
-				String title = mess.message.get("title").asText();
-				
-				try {
-					
-					IndexManager index = graphDb.index();
-					Index<Node> stories = index.forNodes("stories");
-					IndexHits<Node> hits = stories.get("id", title+""+id);
-					
-					Node node = hits.getSingle();
-					
-					if (node == null){
-						
-						connected.get(mess.user).write(GeneralMessages.errorMessage("Object not found"));
-						
-					} else {
-						
-						Logger.info("The following node was found: "+node.getId());
-						connected.get(mess.user).write(GeneralMessages.successMessage("FOUND: "+node.getId()));
-						
-					}	
-					
-				} catch (Exception e){
-					
-					Logger.info("There was a problem retrieving the node");
-					
-				}
-				    			//connected.get(mess.user).write(actualObj);
+				int id = mess.message.get("node").asInt();	
+				JsonNode node = Node.getNode(id);
+    			connected.get(mess.user).write(node);
 				
 			}
 			else if (mess.message.get("action").asText().equals("setStory")){
 				
 				Long id = mess.message.get("id").asLong();
-				String user = mess.message.get("user").asText();
+				
 				List<String> readers = new ArrayList<String>();
 				
 				if(storiesCount.containsKey(id)) {
 					readers = storiesCount.get(id);
-					readers.add(user);
+					readers.add(mess.user);
 				} else {
-					readers.add(user);
+					readers.add(mess.user);
 					storiesCount.put(id, readers);
 				}
+				
+				JsonNode node = Node.getNode(id.intValue());
 
-    			connected.get(mess.user).write(GeneralMessages.generalMessage("{\"type\":\"story\",\"dudes\":\""+readers.size()+"\", \"node\":\""+title+"\"}"));
+    			connected.get(mess.user).write(GeneralMessages.generalMessage("{\"type\":\"story\",\"dudes\":\""+readers.size()+"\"}"));
+    			connected.get(mess.user).write(node);
 				
 			}
 			else if (mess.message.get("action").asText().equals("talk")){
@@ -236,22 +193,22 @@ public class WebSocketModel extends UntypedActor {
         
     }
     
-    // shut down neo4j locks
-    private static void registerShutdownHook( final GraphDatabaseService graphDb )
-    {
-        // Registers a shutdown hook for the Neo4j instance so that it
-        // shuts down nicely when the VM exits (even if you "Ctrl-C" the
-        // running application).
-        Runtime.getRuntime().addShutdownHook( new Thread()
-        {
-            @Override
-            public void run()
-            {
-            	Logger.info("Shutting down Neo4J");
-                graphDb.shutdown();
-            }
-        } );
-    }
+//    // shut down neo4j locks
+//    private static void registerShutdownHook( final GraphDatabaseService graphDb )
+//    {
+//        // Registers a shutdown hook for the Neo4j instance so that it
+//        // shuts down nicely when the VM exits (even if you "Ctrl-C" the
+//        // running application).
+//        Runtime.getRuntime().addShutdownHook( new Thread()
+//        {
+//            @Override
+//            public void run()
+//            {
+//            	Logger.info("Shutting down Neo4J");
+//                graphDb.shutdown();
+//            }
+//        } );
+//    }
     
     private static enum RelTypes implements RelationshipType
     {

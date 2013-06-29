@@ -1,2 +1,18 @@
 
 .vagrant/machines/default/virtualbox/id
+
+.DS_Store
+
+play/cyodm/.target/ApplicationTest.class
+
+play/cyodm/.target/IntegrationTest$1.class
+
+play/cyodm/.target/IntegrationTest.class
+
+*.class
+
+play/cyodm/.target/views/index.scala.html
+
+play/cyodm/.target/views/main.scala.html
+
+play/cyodm/.target/controllers/Application.class
