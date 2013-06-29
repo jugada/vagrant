@@ -10,13 +10,11 @@ import play.Logger;
 import play.mvc.*;
 import play.libs.*;
 
-import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonProcessingException;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
+
 import org.neo4j.graphdb.RelationshipType;
 
 import org.neo4j.graphdb.Transaction;
@@ -27,6 +25,7 @@ import org.neo4j.graphdb.index.IndexManager;
 
 import play.libs.F.Callback;
 import play.libs.F.Callback0;
+import resources.GeneralMessages;
 
 import akka.actor.*;
 
@@ -52,17 +51,9 @@ public class WebSocketModel extends UntypedActor {
 		if(connected.containsKey(user)) {
 			
 			try {
-				// create a json object to return the error. Is this the best way to do it?
-				// if there is no easier way to create an object move this code to a custom class
-				// so we can reuse it.
-    			ObjectMapper mapper = new ObjectMapper();
-    	        JsonFactory factory = mapper.getJsonFactory();
-    	        JsonParser jp;
-    	        
-    	        jp = factory.createJsonParser("{\"error\":\"user already exists\"}");
-    	        JsonNode actualObj;
-    			actualObj = mapper.readTree(jp);
-    			out.write(actualObj);
+				
+    			out.write(GeneralMessages.generalMessage("{\"error\":\"user already exists\"}"));
+    			
     		} catch (Exception e) {
     			// TODO Auto-generated catch block
     			e.printStackTrace();
@@ -109,14 +100,9 @@ public class WebSocketModel extends UntypedActor {
             connected.put(join.user, join.out);
             
             try {
-    			ObjectMapper mapper = new ObjectMapper();
-    	        JsonFactory factory = mapper.getJsonFactory();
-    	        JsonParser jp;
-    	        
-    	        jp = factory.createJsonParser("{\"connected\":\""+connected.size()+"\"}");
-    	        JsonNode actualObj;
-    			actualObj = mapper.readTree(jp);
-    			join.out.write(actualObj);
+    			
+    			join.out.write(GeneralMessages.generalMessage("{\"connected\":\""+connected.size()+"\"}"));
+    			
     		} catch (JsonProcessingException e) {
     			// TODO Auto-generated catch block
     			e.printStackTrace();
@@ -175,20 +161,38 @@ public class WebSocketModel extends UntypedActor {
 				int id = mess.message.get("node").asInt();
 				String title = mess.message.get("title").asText();
 				
-				IndexManager index = graphDb.index();
-				Index<Node> stories = index.forNodes("stories");
-				IndexHits<Node> hits = stories.get("id", title+""+id);
+				try {
+					
+					IndexManager index = graphDb.index();
+					Index<Node> stories = index.forNodes("stories");
+					IndexHits<Node> hits = stories.get("id", title+""+id);
+					
+					Node node = hits.getSingle();
+					
+					if (node == null){
+						
+						connected.get(mess.user).write(GeneralMessages.errorMessage("Object not found"));
+						
+					} else {
+						
+						Logger.info("The following node was found: "+node.getId());
+						connected.get(mess.user).write(GeneralMessages.successMessage("FOUND: "+node.getId()));
+						
+					}	
+					
+				} catch (Exception e){
+					
+					Logger.info("There was a problem retrieving the node");
+					
+				}
+				    			//connected.get(mess.user).write(actualObj);
 				
-				Node node = hits.getSingle();
+			}
+			else if (mess.message.get("action").asText().equals("talk")){
 				
-				ObjectMapper mapper = new ObjectMapper();
-    	        JsonFactory factory = mapper.getJsonFactory();
-    	        JsonParser jp;
-    	        
-    	        jp = factory.createJsonParser("{\"NODE\":\""+node.getProperty("text")+"\"}");
-    	        JsonNode actualObj;
-    			actualObj = mapper.readTree(jp);
-    			connected.get(mess.user).write(actualObj);
+				String username = mess.message.get("user").asText();
+				String talk = mess.message.get("talk").asText();
+    			connected.get(username).write(GeneralMessages.generalMessage("{\"message\":\""+talk+"\"}"));
 				
 			}
 			
