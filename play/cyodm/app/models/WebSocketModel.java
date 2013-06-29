@@ -101,7 +101,7 @@ public class WebSocketModel extends UntypedActor {
             
             try {
     			
-    			join.out.write(GeneralMessages.generalMessage("{\"connected\":\""+connected.size()+"\"}"));
+    			join.out.write(GeneralMessages.generalMessage("{\"type\":\"dudes\",\"connected\":\""+connected.size()+"\"}"));
     			
     		} catch (JsonProcessingException e) {
     			// TODO Auto-generated catch block
